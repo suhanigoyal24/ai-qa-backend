@@ -1,134 +1,147 @@
-"""Services for file upload processing: PDF, audio, video"""
-#api\services\upload.py
+"""File upload and processing services"""
 import os
 import whisper
 from typing import List, Dict, Optional
-import PyPDF2
-from django.conf import settings
+from PyPDF2 import PdfReader
 
 
 def extract_text_from_pdf(file_path: str) -> str:
-    """Extract text from PDF file using PyPDF2"""
-    text = ""
-    with open(file_path, 'rb') as f:
-        reader = PyPDF2.PdfReader(f)
+    """Extract text content from a PDF file."""
+    try:
+        reader = PdfReader(file_path)
+        text = ""
         for page in reader.pages:
             page_text = page.extract_text()
             if page_text:
                 text += page_text + "\n"
-    return text
+        return text.strip()
+    except Exception as e:
+        raise RuntimeError(f"Failed to extract text from PDF: {e}")
 
 
-def transcribe_audio_with_timestamps(file_path: str, model_size: str = "base") -> Dict[str, any]:
+def transcribe_audio_with_timestamps(file_path: str) -> Dict:
     """
-    Transcribe audio/video using Whisper and return text + timestamps.
+    Transcribe audio/video file using Whisper with word-level timestamps.
     
     Returns:
-        dict: {
-            'text': str,  # Full transcription
-            'segments': List[Dict],  # [{start, end, text}, ...]
-            'duration': float  # Total duration in seconds
-        }
+        dict with keys:
+        - text: full transcription
+        - duration: total duration in seconds
+        - segments: list of {text, start, end} dicts
     """
-    # Load Whisper model (cached after first load)
-    model = whisper.load_model(model_size)
-    
-    # Transcribe with word-level timestamps
-    result = model.transcribe(
-        file_path,
-        task="transcribe",
-        language=None,  # Auto-detect
-        verbose=False,
-        word_timestamps=True  # Critical for timestamp extraction
-    )
-    
-    # Extract segments with timestamps
-    segments = []
-    for segment in result.get('segments', []):
-        segments.append({
-            'start': round(segment['start'], 2),
-            'end': round(segment['end'], 2),
-            'text': segment['text'].strip()
-        })
-    
-    return {
-        'text': result['text'].strip(),
-        'segments': segments,
-        'duration': result.get('duration', 0)
-    }
-
-
-def chunk_text_with_timestamps(
-    text: str, 
-    segments: List[Dict], 
-    chunk_size: int = 1000, 
-    overlap: int = 200
-) -> List[Dict]:
-    """
-    Split text into chunks while preserving timestamp metadata.
-    
-    Args:
-        text: Full transcribed text
-        segments: List of {start, end, text} from Whisper
-        chunk_size: Target characters per chunk
-        overlap: Overlap between chunks in characters
-    
-    Returns:
-        List of chunks with metadata: [{text, start_time, end_time, segment_indices}, ...]
-    """
-    if not segments:
-        # Fallback: simple text chunking without timestamps
-        chunks = chunk_text(text, chunk_size, overlap)
-        return [{'text': c, 'start_time': 0, 'end_time': None, 'segment_indices': []} for c in chunks]
-    
-    chunks = []
-    current_chunk = []
-    current_length = 0
-    start_idx = 0
-    
-    for i, seg in enumerate(segments):
-        seg_text = seg['text']
-        seg_len = len(seg_text)
+    try:
+        # Load small model for speed; use "base" or "small" for better accuracy
+        model = whisper.load_model("tiny")
         
-        # Add segment to current chunk if it fits
-        if current_length + seg_len <= chunk_size or not current_chunk:
-            current_chunk.append(seg)
-            current_length += seg_len
-        else:
-            # Save current chunk and start new one
-            if current_chunk:
-                chunks.append({
-                    'text': ' '.join(s['text'] for s in current_chunk),
-                    'start_time': current_chunk[0]['start'],
-                    'end_time': current_chunk[-1]['end'],
-                    'segment_indices': list(range(start_idx, i))
-                })
-            # Start new chunk with overlap
-            overlap_segs = current_chunk[-(overlap//100 + 1):] if overlap > 0 else []
-            current_chunk = overlap_segs + [seg]
-            current_length = sum(len(s['text']) for s in current_chunk)
-            start_idx = i - len(overlap_segs)
-    
-    # Don't forget the last chunk
-    if current_chunk:
-        chunks.append({
-            'text': ' '.join(s['text'] for s in current_chunk),
-            'start_time': current_chunk[0]['start'],
-            'end_time': current_chunk[-1]['end'],
-            'segment_indices': list(range(start_idx, len(segments)))
-        })
-    
-    return chunks
+        # Transcribe with word-level timestamps
+        result = model.transcribe(
+            file_path,
+            word_timestamps=True,
+            task="transcribe",
+            language=None  # Auto-detect
+        )
+        
+        # Extract segments with timestamps
+        segments = []
+        for segment in result.get("segments", []):
+            segments.append({
+                "text": segment.get("text", "").strip(),
+                "start": segment.get("start", 0),
+                "end": segment.get("end", 0),
+                "words": segment.get("words", [])  # Word-level timestamps if needed
+            })
+        
+        return {
+            "text": result.get("text", "").strip(),
+            "duration": result.get("duration", 0),
+            "segments": segments
+        }
+    except Exception as e:
+        raise RuntimeError(f"Whisper transcription failed: {e}")
 
 
 def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> List[str]:
-    """Simple text chunking without timestamps (fallback)"""
-    words = text.split()
+    """Split text into overlapping chunks for embedding."""
+    if not text:
+        return []
+    
     chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        # Try to break at sentence boundary
+        if end < len(text):
+            # Look for period, exclamation, or question mark
+            for punct in [".", "!", "?", "\n"]:
+                pos = text.rfind(punct, start, end)
+                if pos > start + chunk_size // 2:
+                    end = pos + 1
+                    break
+        chunks.append(text[start:end].strip())
+        start = end - overlap
+    return chunks
+
+
+def chunk_text_with_timestamps(
+    full_text: str,
+    segments: List[Dict],
+    chunk_size: int = 1000,
+    overlap: int = 200
+) -> List[Dict]:
+    """
+    Split transcribed text into chunks while preserving timestamp metadata.
     
-    for i in range(0, len(words), chunk_size - overlap):
-        chunk = ' '.join(words[i:i + chunk_size])
-        if chunk.strip():
-            chunks.append(chunk)
+    Returns list of dicts: {text, start_time, end_time, segment_indices}
+    """
+    if not segments:
+        # Fallback to plain chunking if no segments
+        return [{"text": t, "start_time": None, "end_time": None} for t in chunk_text(full_text, chunk_size, overlap)]
     
-    return chunks if chunks else [text]
+    chunks = []
+    current_text = ""
+    current_start = None
+    current_end = None
+    segment_indices = []
+    
+    for i, seg in enumerate(segments):
+        seg_text = seg.get("text", "").strip()
+        seg_start = seg.get("start")
+        seg_end = seg.get("end")
+        
+        if not seg_text:
+            continue
+            
+        # Add segment to current chunk
+        if current_text:
+            current_text += " " + seg_text
+        else:
+            current_text = seg_text
+            current_start = seg_start
+        
+        current_end = seg_end
+        segment_indices.append(i)
+        
+        # If chunk is big enough, save it
+        if len(current_text) >= chunk_size:
+            chunks.append({
+                "text": current_text.strip(),
+                "start_time": current_start,
+                "end_time": current_end,
+                "segment_indices": segment_indices.copy()
+            })
+            # Start new chunk with overlap from last few segments
+            overlap_text = " ".join(segments[j]["text"] for j in segment_indices[-3:] if j < len(segments))
+            current_text = overlap_text.strip() if overlap_text else seg_text
+            current_start = segments[segment_indices[-3]]["start"] if len(segment_indices) >= 3 else seg_start
+            segment_indices = segment_indices[-3:]
+    
+    # Don't forget the last chunk
+    if current_text.strip():
+        chunks.append({
+            "text": current_text.strip(),
+            "start_time": current_start,
+            "end_time": current_end,
+            "segment_indices": segment_indices
+        })
+    
+    return chunks
