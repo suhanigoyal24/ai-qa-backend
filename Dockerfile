@@ -64,4 +64,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/api/files/')" || exit 1
 
 # Run collectstatic again at startup when env vars are available, then migrate and serve
-CMD ["sh", "-c", "python manage.py collectstatic --noinput --clear && python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:7860 --workers 2 --timeout 120"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:7860 --workers 2 --timeout 120"]
