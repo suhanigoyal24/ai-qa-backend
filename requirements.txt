@@ -16,7 +16,7 @@ langchain-community==0.2.16
 langchain-google-genai==1.0.10
 google-generativeai==0.7.2
 faiss-cpu==1.8.0.post1
-openai-whisper==20240930
+openai-whisper==20231117
 
 # Document & Media Processing
 PyPDF2==3.0.1
