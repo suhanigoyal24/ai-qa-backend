@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_URL = '/api';
+const API_URL = 'https://gsuhani17-ai-qa-backend.hf.space/api';
 
 function App() {
   const [files, setFiles] = useState([]);
