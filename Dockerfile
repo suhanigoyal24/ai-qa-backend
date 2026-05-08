@@ -1,4 +1,3 @@
-# ai-qa-app/Dockerfile - FIXED VERSION
 FROM python:3.12-slim
 
 # Set environment variables
@@ -49,8 +48,9 @@ RUN pip install --no-cache-dir \
     pytest-mock==3.14.0 \
     django-environ==0.11.2
 
-# Step 3: Install whisper LAST with --no-build-isolation (fixes pkg_resources error)
-RUN pip install --no-cache-dir --no-build-isolation openai-whisper==20231117
+# Step 3: Re-install setuptools fresh, then install whisper (fixes pkg_resources error)
+RUN pip install --no-cache-dir setuptools wheel && \
+    pip install --no-cache-dir openai-whisper==20231117
 
 # Step 4: Install any remaining platform-specific deps
 RUN pip install --no-cache-dir python-magic==0.4.27
