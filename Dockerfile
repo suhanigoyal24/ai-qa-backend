@@ -4,7 +4,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PORT=7860
+    PORT=7860 \
+    DJANGO_SETTINGS_MODULE=config.settings
 
 RUN apt-get update && apt-get install -y \
     ffmpeg \
@@ -54,11 +55,13 @@ COPY . .
 
 RUN mkdir -p media faiss_indexes
 
-RUN python manage.py collectstatic --noinput --clear
+# Skip collectstatic if it fails during build (secrets not available at build time)
+RUN python manage.py collectstatic --noinput --clear || echo "collectstatic skipped"
 
 EXPOSE 7860
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/api/files/')" || exit 1
 
-CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:7860 --workers 2 --timeout 120"]
+# Run collectstatic again at startup when env vars are available, then migrate and serve
+CMD ["sh", "-c", "python manage.py collectstatic --noinput --clear && python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:7860 --workers 2 --timeout 120"]
