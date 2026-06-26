@@ -45,3 +45,4 @@ faiss_indexes/
 *.swp
 *.swo
 .DS_Store
+node_modules/
