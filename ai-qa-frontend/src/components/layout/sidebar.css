@@ -1,0 +1,91 @@
+.sidebar {
+    width: 270px;
+    height: 100vh;
+    background: #111827;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 28px 18px;
+    border-right: 1px solid #1f2937;
+}
+
+.sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 40px;
+}
+
+.logo-circle {
+    width: 50px;
+    height: 50px;
+    border-radius: 14px;
+    background: linear-gradient(135deg,#2563eb,#4f46e5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 18px;
+}
+
+.sidebar-logo h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.sidebar-logo span {
+    font-size: 13px;
+    color: #94a3b8;
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sidebar-item {
+    border: none;
+    outline: none;
+    background: transparent;
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: .25s;
+    font-size: 15px;
+}
+
+.sidebar-item:hover {
+    background: #1f2937;
+    color: white;
+}
+
+.sidebar-item.active {
+    background: #2563eb;
+    color: white;
+}
+
+.sidebar-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.version {
+    border-top: 1px solid #374151;
+    padding-top: 20px;
+}
+
+.version strong {
+    display: block;
+}
+
+.version small {
+    color: #9ca3af;
+}
