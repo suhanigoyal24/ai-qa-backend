@@ -14,7 +14,9 @@ def get_llm(model_name: str = "gemini-pro", temperature: float = 0.1):
     if _llm_instance is not None:
         return _llm_instance
     
-    api_key = os.getenv("GOOGLE_API_KEY")
+    # Fixed: was "GOOGLE_API_KEY" which never matched the actual secret name
+    # (GEMINI_API_KEY, as set in settings.py and HF Space secrets).
+    api_key = os.getenv("GEMINI_API_KEY")
     
     # If no valid API key, return mock
     if not api_key or api_key == "your_gemini_api_key_here":
@@ -36,15 +38,18 @@ def get_llm(model_name: str = "gemini-pro", temperature: float = 0.1):
 
 
 class _MockLLM:
-    """Simple, reliable mock that returns varied answers based on question keywords."""
+    """Simple, reliable mock that returns varied answers based on question keywords.
+    
+    NOTE: this only fires when GEMINI_API_KEY is missing/invalid. It cannot see
+    the document context, so answers will look generic/repeated across files
+    by design - it is a fallback, not a real answer engine.
+    """
     
     def invoke(self, prompt: str, **kwargs):
-        # Extract just the question part (after "Question:")
         question = prompt.lower()
         if "question:" in question:
             question = question.split("question:")[-1].strip()
         
-        # Route based on simple keyword matching
         if any(k in question for k in ["skill", "skills", "technology", "technologies", "stack", "tools"]):
             answer = "Key technical skills mentioned: Python, Django, Django REST Framework, React, Vite, PostgreSQL, FAISS, Whisper, Google Gemini, LangChain, Docker, and GitHub Actions. Strong focus on full-stack development and AI/ML integration."
         elif any(k in question for k in ["summary", "summarize", "about", "document", "what is"]):
@@ -58,7 +63,6 @@ class _MockLLM:
         elif any(k in question for k in ["project", "experience", "background", "work history"]):
             answer = "The document outlines experience building AI-powered applications with semantic search, full-stack web development with Django and React, and production deployment using Docker and GitHub Actions."
         else:
-            # Generic but still useful fallback
             answer = "The document contains professional or technical content related to software development. For specific answers, try asking about skills, technologies, architecture, or project experience."
         
         return _MockResponse(answer)

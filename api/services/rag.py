@@ -19,7 +19,7 @@ _USE_MOCK = os.getenv("USE_MOCK_EMBEDDINGS", "False").lower() == "true"
 
 
 def _mock_embed(texts: List[str]) -> List[List[float]]:
-    """Mock embeddings for demo/testing."""
+    """Mock embeddings for demo/testing only - NOT real semantic search."""
     import hashlib
     vectors = []
     for text in texts:
@@ -43,7 +43,11 @@ def get_embeddings():
         return MockEmbeddings()
     
     if _embeddings is None:
-        api_key = os.getenv("GOOGLE_API_KEY")
+        # Fixed: was "GOOGLE_API_KEY" which never matched the actual secret name
+        # (GEMINI_API_KEY, as set in settings.py and HF Space secrets). This was
+        # silently forcing every file onto hash-based mock embeddings, so FAISS
+        # search results were essentially random/meaningless.
+        api_key = os.getenv("GEMINI_API_KEY")
         if not api_key or api_key == "your_gemini_api_key_here":
             class MockEmbeddings:
                 def embed_documents(self, texts): return _mock_embed(texts)
@@ -85,7 +89,6 @@ def create_faiss_index(chunks: List[Dict], file_id: str) -> str:
     
     faiss.write_index(index, str(index_path))
     
-    # Save metadata with timestamps
     metadata = []
     for i, chunk in enumerate(chunks):
         if isinstance(chunk, dict):
@@ -132,7 +135,7 @@ def search_similar(query: str, file_id: str, top_k: int = 3) -> List[Dict]:
             results.append({
                 'chunk_index': chunk_meta.get('index', idx),
                 'text': chunk_meta.get('text', ''),
-                'start_time': chunk_meta.get('start_time'),  # Real timestamp
+                'start_time': chunk_meta.get('start_time'),
                 'end_time': chunk_meta.get('end_time'),
                 'segment_indices': chunk_meta.get('segment_indices', []),
                 'score': float(dist)
@@ -165,10 +168,9 @@ def extract_best_timestamp(results: List[Dict]) -> Optional[float]:
     """
     for result in results:
         start = result.get('start_time')
-        # Only return if it's a valid number > 0
         if start is not None and isinstance(start, (int, float)) and start > 0:
             try:
                 return float(start)
             except (TypeError, ValueError):
                 continue
-    return None  # Return None if no valid timestamp found
+    return None
