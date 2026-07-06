@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'api',
+    'rest_framework_simplejwt'
 ]
 
 MIDDLEWARE = [
@@ -55,11 +56,27 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
+# ---------------------------------------------------------------------------
+# DATABASE: MySQL (was PostgreSQL). FAISS is used for vector/semantic search
+# separately (see FAISS_INDEX_PATH below) - this DB only stores relational
+# data: UploadedFile, DocumentChunk, ChatMessage.
+#
+# Set DATABASE_URL as an env var / HF Space secret in this format:
+#   mysql://<user>:<password>@<host>:<port>/<db_name>
+#
+# If using TiDB Cloud Serverless (MySQL-compatible), append SSL params:
+#   mysql://<user>:<password>@<host>:4000/<db_name>?ssl_ca=/path/to/isrgrootx1.pem
+# ---------------------------------------------------------------------------
 DATABASES = {
     'default': dj_database_url.config(
-        default=config('DATABASE_URL', default=f'postgresql://suhani17@localhost:5432/postgres'),
+        default=config('DATABASE_URL', default='mysql://root:@localhost:3306/ai_qa'),
         conn_max_age=600,
     )
+}
+
+# Required for MySQL connections with dj_database_url / mysqlclient
+DATABASES['default']['OPTIONS'] = {
+    'charset': 'utf8mb4',
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -95,3 +112,18 @@ REST_FRAMEWORK = {
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
 
 FAISS_INDEX_PATH = os.path.join(BASE_DIR, 'faiss_indexes')
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+}
+
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=7),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+}

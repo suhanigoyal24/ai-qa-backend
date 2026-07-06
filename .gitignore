@@ -46,3 +46,7 @@ faiss_indexes/
 *.swo
 .DS_Store
 node_modules/
+.venv/
+.venv-1/
+*.pem
+isrgrootx1.pem

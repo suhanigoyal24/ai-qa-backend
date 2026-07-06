@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from decouple import config
-import dj_database_url
+from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework_simplejwt',
     'corsheaders',
     'api',
 ]
@@ -55,11 +56,23 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
+# ---------------------------------------------------------------------------
+# DATABASE: TiDB Cloud Serverless (MySQL-compatible)
+# Manual dict config (not dj_database_url) for reliable SSL handling.
+# ---------------------------------------------------------------------------
 DATABASES = {
-    'default': dj_database_url.config(
-        default=config('DATABASE_URL', default=f'postgresql://suhani17@localhost:5432/postgres'),
-        conn_max_age=600,
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': config('DB_NAME', default='ai_qa_db'),
+        'USER': config('DB_USER'),
+        'PASSWORD': config('DB_PASSWORD'),
+        'HOST': config('DB_HOST'),
+        'PORT': config('DB_PORT', default='4000'),
+        'OPTIONS': {
+            'charset': 'utf8mb4',
+            'ssl': {'ca': str(BASE_DIR / 'isrgrootx1.pem')},
+        },
+    }
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -87,9 +100,17 @@ CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:
 CORS_ALLOW_ALL_ORIGINS = False
 
 REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
-    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=7),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
 }
 
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
