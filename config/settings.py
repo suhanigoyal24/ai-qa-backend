@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from decouple import config
 import dj_database_url
+from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -56,17 +57,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# ---------------------------------------------------------------------------
-# DATABASE: MySQL (was PostgreSQL). FAISS is used for vector/semantic search
-# separately (see FAISS_INDEX_PATH below) - this DB only stores relational
-# data: UploadedFile, DocumentChunk, ChatMessage.
-#
-# Set DATABASE_URL as an env var / HF Space secret in this format:
-#   mysql://<user>:<password>@<host>:<port>/<db_name>
-#
-# If using TiDB Cloud Serverless (MySQL-compatible), append SSL params:
-#   mysql://<user>:<password>@<host>:4000/<db_name>?ssl_ca=/path/to/isrgrootx1.pem
-# ---------------------------------------------------------------------------
+
 DATABASES = {
     'default': dj_database_url.config(
         default=config('DATABASE_URL', default='mysql://root:@localhost:3306/ai_qa'),
@@ -103,12 +94,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:3000').split(',')
 CORS_ALLOW_ALL_ORIGINS = False
 
-REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
-    ],
-}
-
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
 
 FAISS_INDEX_PATH = os.path.join(BASE_DIR, 'faiss_indexes')
@@ -122,7 +107,6 @@ REST_FRAMEWORK = {
     ),
 }
 
-from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=7),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
