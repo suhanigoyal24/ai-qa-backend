@@ -47,7 +47,5 @@ faiss_indexes/
 htmlcov/
 .xml
 
-# Node/Frontend (separate build)
-ai-qa-frontend/node_modules/
-ai-qa-frontend/dist/
-ai-qa-frontend/.vite/
+# Frontend (deployed separately on Vercel, not needed in backend Docker build)
+ai-qa-frontend/
