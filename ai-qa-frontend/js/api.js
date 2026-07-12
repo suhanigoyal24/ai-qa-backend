@@ -1,7 +1,7 @@
 /* api.js — API base URL, JWT token storage, and the shared fetch wrapper.
    Loaded on every page (index, login, signup). */
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'https://gsuhani17-ai-qa-backend.hf.space/api';
 
 const TOKEN_KEYS = {
   access: 'aiqa_access_token',

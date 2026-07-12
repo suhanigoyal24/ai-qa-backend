@@ -4,7 +4,8 @@ const AppState = {
   files: [],
   selectedFile: null,
   messages: [],
-  loading: false,
+  summarizing: false,
+  chatting: false,
   uploading: false
 };
 
@@ -24,7 +25,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('file-upload').addEventListener('change', handleUpload);
   document.getElementById('refresh-btn').addEventListener('click', handleRefresh);
-  document.getElementById('summarize-btn').addEventListener('click', handleSummarize);
   document.getElementById('summary-generate-btn').addEventListener('click', handleSummarize);
   document.getElementById('send-btn').addEventListener('click', handleSend);
   document.getElementById('question-input').addEventListener('input', updateControls);

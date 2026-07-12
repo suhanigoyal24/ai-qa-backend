@@ -7,7 +7,7 @@ async function handleSend() {
 
   AppState.messages.push({ role: 'user', content: question });
   questionInput.value = '';
-  AppState.loading = true;
+  AppState.chatting = true;
   renderMessages();
   updateControls();
 
@@ -31,7 +31,7 @@ async function handleSend() {
   } catch (err) {
     AppState.messages.push({ role: 'ai', content: err.message || 'Request failed' });
   } finally {
-    AppState.loading = false;
+    AppState.chatting = false;
     renderMessages();
     updateControls();
   }

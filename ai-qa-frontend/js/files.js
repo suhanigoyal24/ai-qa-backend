@@ -1,5 +1,23 @@
 /* files.js — fetching, uploading, refreshing, and selecting files. */
 
+function showToast(message, type = 'success') {
+  let overlay = document.getElementById('toast-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'toast-overlay';
+    overlay.className = 'toast-overlay';
+    document.body.appendChild(overlay);
+  }
+  const icon = type === 'success' ? '✓' : '⚠';
+  overlay.innerHTML = `<div class="toast-box ${type}"><span class="toast-icon">${icon}</span><span>${message}</span></div>`;
+  const box = overlay.querySelector('.toast-box');
+  requestAnimationFrame(() => box.classList.add('show'));
+  setTimeout(() => {
+    box.classList.remove('show');
+    setTimeout(() => { overlay.innerHTML = ''; }, 200);
+  }, 2200);
+}
+
 async function fetchFiles() {
   try {
     setStatus('Loading...', false);
@@ -47,10 +65,10 @@ async function handleUpload(e) {
     setStatus('Processed!', false);
     AppState.selectedFile = data.file_id;
     await fetchFiles();
-    alert(`Success!\nFile: ${data.title || file.name}\nChunks: ${data.chunks}`);
+    showToast(`File uploaded successfully — ${data.title || file.name}`, 'success');
   } catch (err) {
     setStatus(err.message || 'Upload failed', true);
-    alert(`Upload failed:\n${err.message}`);
+    showToast(err.message || 'Upload failed', 'error');
   } finally {
     AppState.uploading = false;
     document.getElementById('file-upload').value = '';
@@ -72,4 +90,36 @@ function selectFile(fileId) {
   renderFileList();
   renderMessages();
   updateControls();
+}
+
+function confirmDeleteFile(fileId, title) {
+  showConfirm(`Delete "${title}"? This cannot be undone.`, () => deleteFile(fileId));
+}
+
+async function deleteFile(fileId) {
+  try {
+    setStatus('Deleting...', false);
+    const res = await apiFetch(`/files/${fileId}/`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Delete failed');
+    }
+
+    if (AppState.selectedFile === fileId) {
+      AppState.selectedFile = null;
+      AppState.messages = [];
+      const summaryContentEl = document.getElementById('summary-content');
+      summaryContentEl.textContent = 'Select a file and click Generate.';
+      summaryContentEl.className = 'summary-empty';
+      renderMessages();
+    }
+
+    await fetchFiles();
+    showToast('File deleted', 'success');
+  } catch (err) {
+    setStatus(err.message || 'Delete failed', true);
+    showToast(err.message || 'Delete failed', 'error');
+  } finally {
+    updateControls();
+  }
 }
