@@ -1,8 +1,11 @@
 """File upload and processing services"""
 import os
+import logging
 import whisper
 from typing import List, Dict, Optional
 from PyPDF2 import PdfReader
+
+logger = logging.getLogger(__name__)
 
 
 def extract_text_from_pdf(file_path: str) -> str:
@@ -50,7 +53,12 @@ def transcribe_audio_with_timestamps(file_path: str) -> Dict:
                 "end": segment.get("end", 0),
                 "words": segment.get("words", [])  # Word-level timestamps if needed
             })
-        
+
+        # DEBUG: log what Whisper actually transcribed
+        logger.info(f"Whisper detected language: {result.get('language')}")
+        logger.info(f"Whisper transcript preview ({len(result.get('text', ''))} chars): {result.get('text', '')[:300]}")
+        logger.info(f"Whisper segment count: {len(segments)}")
+
         return {
             "text": result.get("text", "").strip(),
             "duration": result.get("duration", 0),

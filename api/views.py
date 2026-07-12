@@ -18,11 +18,15 @@ from .serializers import (
 from .services import upload as upload_service
 from .services import rag as rag_service
 from .services import llm as llm_service
+import shutil
+
 
 logger = logging.getLogger(__name__)
 
 MEDIA_ROOT = Path(settings.BASE_DIR) / 'media'
 MEDIA_ROOT.mkdir(exist_ok=True)
+
+TIME_KEYWORDS = ['when', 'where', 'timestamp', 'time', 'jump', 'minute', 'second', 'moment', 'part', 'clip']
 
 
 class UploadFileView(APIView):
@@ -201,6 +205,8 @@ class ChatView(APIView):
 
             results = rag_service.search_similar(question, str(file_id), top_k=3)
             logger.info(f"Found {len(results)} relevant chunks")
+            if results:
+                logger.info(f"Top chunk score: {results[0].get('score')}")
 
             context = rag_service.get_context_from_results(results)
 
@@ -208,11 +214,18 @@ class ChatView(APIView):
 
             referenced_timestamp = None
             if file_obj.file_type in ['audio', 'video'] and results:
-                referenced_timestamp = rag_service.extract_best_timestamp(results)
-                if referenced_timestamp is not None:
-                    logger.info(f"Extracted timestamp: {referenced_timestamp}s")
+                question_wants_time = any(k in question.lower() for k in TIME_KEYWORDS)
+                top_score = results[0].get('score')
+                is_strong_match = top_score is not None and top_score < 0.6
+
+                if question_wants_time and is_strong_match:
+                    referenced_timestamp = rag_service.extract_best_timestamp(results)
+                    if referenced_timestamp is not None:
+                        logger.info(f"Extracted timestamp: {referenced_timestamp}s")
+                    else:
+                        logger.info("No valid timestamp found in results")
                 else:
-                    logger.info("No valid timestamp found in results")
+                    logger.info(f"Timestamp skipped (wants_time={question_wants_time}, strong_match={is_strong_match})")
 
             msg = ChatMessage.objects.create(
                 file=file_obj,
@@ -238,4 +251,40 @@ class ChatView(APIView):
             return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"Chat error: {e}", exc_info=True)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+
+class DeleteFileView(APIView):
+    """Delete an uploaded file and all associated data (only if it belongs to the user)"""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, file_id):
+        try:
+            file_obj = UploadedFile.objects.get(id=file_id, uploaded_by=request.user)
+
+            if file_obj.file_path and os.path.exists(file_obj.file_path):
+                try:
+                    os.remove(file_obj.file_path)
+                except OSError as e:
+                    logger.warning(f"Could not delete file on disk: {e}")
+
+            faiss_dir = Path(settings.BASE_DIR) / "faiss_indexes"
+            for suffix in [".faiss", "_meta.pkl"]:
+                idx_path = faiss_dir / f"{file_id}{suffix}"
+                if idx_path.exists():
+                    try:
+                        idx_path.unlink()
+                    except OSError as e:
+                        logger.warning(f"Could not delete FAISS index file {idx_path}: {e}")
+
+            file_obj.delete()
+
+            logger.info(f"Deleted file {file_id} and associated data")
+            return Response({'message': 'File deleted successfully'}, status=status.HTTP_200_OK)
+
+        except UploadedFile.DoesNotExist:
+            return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Delete file error: {e}", exc_info=True)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
