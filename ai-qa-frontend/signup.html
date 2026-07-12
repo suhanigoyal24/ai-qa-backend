@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sign up — AI Document Q&A</title>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<div class="auth-page">
+  <div class="auth-card">
+    <p class="auth-title">AI Doc Q&A</p>
+    <p class="auth-subtitle">Create your account</p>
+
+    <p class="auth-error" id="auth-error"></p>
+
+    <form id="signup-form">
+      <div class="auth-field">
+        <label for="username">Username</label>
+        <input type="text" id="username" required autocomplete="username" />
+      </div>
+      <div class="auth-field">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="email" />
+      </div>
+      <div class="auth-field">
+        <label for="password">Password</label>
+        <input type="password" id="password" required autocomplete="new-password" minlength="6" />
+      </div>
+      <button type="submit" class="auth-submit" id="auth-submit">Sign up</button>
+    </form>
+
+    <p class="auth-switch">Already have an account? <a href="login.html">Log in</a></p>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+</body>
+</html>

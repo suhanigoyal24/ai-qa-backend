@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Log in — AI Document Q&A</title>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<div class="auth-page">
+  <div class="auth-card">
+    <p class="auth-title">AI Doc Q&A</p>
+    <p class="auth-subtitle">Log in to your account</p>
+
+    <p class="auth-error" id="auth-error"></p>
+
+    <form id="login-form">
+      <div class="auth-field">
+        <label for="username">Username</label>
+        <input type="text" id="username" required autocomplete="username" />
+      </div>
+      <div class="auth-field">
+        <label for="password">Password</label>
+        <input type="password" id="password" required autocomplete="current-password" />
+      </div>
+      <button type="submit" class="auth-submit" id="auth-submit">Log in</button>
+    </form>
+
+    <p class="auth-switch">Don't have an account? <a href="signup.html">Sign up</a></p>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+</body>
+</html>

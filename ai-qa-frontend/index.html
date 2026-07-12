@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Document Q&A</title>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">AI Doc Q&A</div>
+
+    <input type="file" id="file-upload" accept=".pdf,.mp3,.mp4,.wav,.m4a,.ogg" style="display:none" />
+    <label for="file-upload" id="upload-label" class="upload-label">Upload File</label>
+
+    <div class="files-heading">Your Files</div>
+    <div id="file-list"></div>
+
+    <div class="sidebar-footer">
+      <div class="user-badge" id="current-user"></div>
+      <button class="logout-btn" id="logout-btn">Log out</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="filename" id="topbar-filename">AI Document Q&A</div>
+      <span class="status" id="status-text"></span>
+      <button class="btn-outline" id="refresh-btn">Refresh</button>
+      <button class="btn-green" id="summarize-btn" disabled>Summary</button>
+    </header>
+
+    <div class="content">
+      <div class="chat-col">
+        <div class="messages" id="messages">
+          <p class="empty">Ask anything about your document...</p>
+        </div>
+        <div class="input-row">
+          <input type="text" id="question-input" placeholder="Select a file first" disabled />
+          <button class="btn-send" id="send-btn" disabled>Send</button>
+        </div>
+        <div class="timestamp-note" id="timestamp-note" style="display:none">
+          <div class="heading">Timestamps</div>
+          <div class="hint">Ask a question about your audio/video — timestamps will appear in chat above.</div>
+        </div>
+      </div>
+
+      <div class="summary-col">
+        <div class="summary-header">
+          <span>Summary</span>
+          <button class="btn-green" id="summary-generate-btn" disabled>Generate</button>
+        </div>
+        <div id="summary-content" class="summary-empty">Select a file and click Generate.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/files.js"></script>
+<script src="js/chat.js"></script>
+<script src="js/summary.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
