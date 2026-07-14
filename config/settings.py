@@ -102,6 +102,12 @@ if DATABASES["default"]["ENGINE"] == "django.db.backends.mysql":
         "ssl_mode": "VERIFY_IDENTITY",
         "charset": "utf8mb4",
     }
+    # TiDB Cloud closes idle connections server-side before conn_max_age
+    # expires. Without a health check, Django tries to reuse the dead
+    # connection and the request fails with a 500. This pings the
+    # connection before reuse and transparently opens a new one if it's
+    # gone.
+    DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 
 # Password validation
