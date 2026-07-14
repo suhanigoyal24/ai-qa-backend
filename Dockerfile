@@ -74,9 +74,7 @@ RUN mkdir -p media faiss_indexes
 RUN python manage.py collectstatic --noinput --clear || \
     echo "collectstatic skipped during build"
 
+
 EXPOSE 7860
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/api/files/')" || exit 1
-
-CMD ["sh", "-c", "echo '--- Testing DB connection ---' && timeout 30 python manage.py check --database default; if [ $? -ne 0 ]; then echo '--- DB CONNECTION FAILED OR TIMED OUT ---'; sleep 3600; fi; echo '--- DB OK, running migrate ---' && timeout 60 python manage.py migrate --noinput && echo '--- Migrate done, starting gunicorn ---' && exec gunicorn config.wsgi:application --bind 0.0.0.0:7860 --workers 2 --timeout 300 --access-logfile - --error-logfile - --log-level info"]
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:7860", "--workers", "1", "--timeout", "300", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "debug"]
