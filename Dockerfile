@@ -5,7 +5,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     DJANGO_SETTINGS_MODULE=config.settings \
-    PORT=7860
+    PORT=7860 \
+    WHISPER_CACHE_DIR=/app/.cache/whisper
 
 WORKDIR /app
 
@@ -32,9 +33,17 @@ RUN pip install --no-cache-dir --upgrade \
 
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Download the Whisper tiny model during the image build.
+# Users will not have to wait for the model download on the first upload.
+RUN mkdir -p "${WHISPER_CACHE_DIR}" && \
+    python -c "import os, whisper; whisper.load_model('tiny', download_root=os.environ['WHISPER_CACHE_DIR'])"
+
 COPY . .
 
-RUN mkdir -p media faiss_indexes
+RUN mkdir -p \
+    media \
+    faiss_indexes \
+    staticfiles
 
 RUN python manage.py collectstatic --noinput --clear
 
