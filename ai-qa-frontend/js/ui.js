@@ -1,4 +1,4 @@
-/* ui.js — shared DOM render helpers for index.html. */
+/* Shared DOM render helpers for index.html. */
 
 function setStatus(text, isError) {
   const statusText = document.getElementById('status-text');
@@ -11,6 +11,7 @@ function renderMarkdownLite(text) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+
   return escaped
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/^\* /gm, '• ')
@@ -26,29 +27,39 @@ function renderFileList() {
     return;
   }
 
-  AppState.files.forEach(f => {
+  AppState.files.forEach(file => {
     const item = document.createElement('div');
-    item.className = 'file-item-row' + (AppState.selectedFile === f.id ? ' active' : '');
+    item.className = 'file-item-row' + (
+      AppState.selectedFile === file.id ? ' active' : ''
+    );
 
-    const btn = document.createElement('button');
-    btn.className = 'file-item';
-    btn.innerHTML = `
-      <div class="title">${f.title}</div>
-      <div class="meta">${f.file_type} &middot; ${new Date(f.created_at).toLocaleDateString()} &middot; ${f.is_processed ? 'Ready' : 'Processing'}</div>
-    `;
-    btn.onclick = () => selectFile(f.id);
+    const button = document.createElement('button');
+    button.className = 'file-item';
 
-    const delBtn = document.createElement('button');
-    delBtn.className = 'file-delete-btn';
-    delBtn.innerHTML = '✕';
-    delBtn.title = 'Delete file';
-    delBtn.onclick = (e) => {
-      e.stopPropagation();
-      confirmDeleteFile(f.id, f.title);
+    const title = document.createElement('div');
+    title.className = 'title';
+    title.textContent = file.title;
+
+    const metadata = document.createElement('div');
+    metadata.className = 'meta';
+    const state = file.is_processed ? 'Ready' : 'Processing';
+    metadata.textContent = `${file.file_type} · ${new Date(file.created_at).toLocaleDateString()} · ${state}`;
+
+    button.appendChild(title);
+    button.appendChild(metadata);
+    button.onclick = () => selectFile(file.id);
+
+    const deleteButton = document.createElement('button');
+    deleteButton.className = 'file-delete-btn';
+    deleteButton.textContent = 'x';
+    deleteButton.title = 'Delete file';
+    deleteButton.onclick = event => {
+      event.stopPropagation();
+      confirmDeleteFile(file.id, file.title);
     };
 
-    item.appendChild(btn);
-    item.appendChild(delBtn);
+    item.appendChild(button);
+    item.appendChild(deleteButton);
     fileListEl.appendChild(item);
   });
 }
@@ -57,62 +68,81 @@ function renderMessages() {
   const messagesEl = document.getElementById('messages');
 
   if (AppState.messages.length === 0) {
-    messagesEl.innerHTML = '<p class="empty">Ask anything about your document...</p>';
+    messagesEl.innerHTML = '<p class="empty">Ask anything about your selected file...</p>';
     return;
   }
 
   messagesEl.innerHTML = '';
-  AppState.messages.forEach(m => {
+  AppState.messages.forEach(message => {
     const row = document.createElement('div');
-    row.className = 'msg-row ' + m.role;
+    row.className = 'msg-row ' + message.role;
     const bubble = document.createElement('span');
-    bubble.className = 'bubble ' + m.role;
-    if (m.role === 'ai') {
-      bubble.innerHTML = renderMarkdownLite(m.content);
+    bubble.className = 'bubble ' + message.role;
+
+    if (message.role === 'ai') {
+      bubble.innerHTML = renderMarkdownLite(message.content);
     } else {
-      bubble.textContent = m.content;
+      bubble.textContent = message.content;
     }
+
     row.appendChild(bubble);
     messagesEl.appendChild(row);
   });
 
   if (AppState.chatting) {
-    const p = document.createElement('p');
-    p.className = 'thinking';
-    p.textContent = 'AI is thinking...';
-    messagesEl.appendChild(p);
+    const thinking = document.createElement('p');
+    thinking.className = 'thinking';
+    thinking.textContent = 'AI is thinking...';
+    messagesEl.appendChild(thinking);
   }
 
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
 function updateControls() {
-  const hasFile = !!AppState.selectedFile;
+  const hasFile = Boolean(AppState.selectedFile);
   const busy = AppState.summarizing || AppState.uploading;
-
-  const summaryGenerateBtn = document.getElementById('summary-generate-btn');
+  const summaryButton = document.getElementById('summary-generate-btn');
   const questionInput = document.getElementById('question-input');
-  const sendBtn = document.getElementById('send-btn');
-  const refreshBtn = document.getElementById('refresh-btn');
+  const sendButton = document.getElementById('send-btn');
+  const refreshButton = document.getElementById('refresh-btn');
   const uploadLabel = document.getElementById('upload-label');
   const topbarFilename = document.getElementById('topbar-filename');
   const timestampNote = document.getElementById('timestamp-note');
 
-  summaryGenerateBtn.disabled = !hasFile || busy;
-
+  summaryButton.disabled = !hasFile || busy;
   questionInput.disabled = !hasFile || AppState.uploading;
-  questionInput.placeholder = hasFile ? 'Ask about the document...' : 'Select a file first';
-  sendBtn.disabled = !hasFile || AppState.uploading || AppState.chatting || !questionInput.value.trim();
+  questionInput.placeholder = hasFile
+    ? 'Ask about the selected file...'
+    : 'Select a file first';
+  sendButton.disabled = (
+    !hasFile ||
+    AppState.uploading ||
+    AppState.chatting ||
+    !questionInput.value.trim()
+  );
+  refreshButton.disabled = (
+    AppState.summarizing ||
+    AppState.chatting ||
+    AppState.uploading
+  );
 
-  refreshBtn.disabled = AppState.summarizing || AppState.chatting || AppState.uploading;
+  uploadLabel.textContent = AppState.uploading
+    ? 'Processing...'
+    : 'Upload File';
+  uploadLabel.className = 'upload-label' + (
+    AppState.uploading ? ' disabled' : ''
+  );
 
-  uploadLabel.textContent = AppState.uploading ? 'Processing...' : 'Upload File';
-  uploadLabel.className = 'upload-label' + (AppState.uploading ? ' disabled' : '');
-
-  const file = AppState.files.find(f => f.id === AppState.selectedFile);
+  const file = AppState.files.find(
+    item => item.id === AppState.selectedFile
+  );
   topbarFilename.textContent = file ? file.title : 'AI Document Q&A';
 
-  timestampNote.style.display = (AppState.selectedFile && file && file.file_type !== 'pdf') ? 'block' : 'none';
+  const hasTimestamps = file && (
+    file.file_type === 'audio' || file.file_type === 'video'
+  );
+  timestampNote.style.display = hasTimestamps ? 'block' : 'none';
 }
 
 function showConfirm(message, onConfirm) {
@@ -123,6 +153,7 @@ function showConfirm(message, onConfirm) {
     overlay.className = 'toast-overlay';
     document.body.appendChild(overlay);
   }
+
   overlay.style.pointerEvents = 'auto';
   overlay.style.background = 'rgba(0,0,0,0.35)';
   overlay.innerHTML = `

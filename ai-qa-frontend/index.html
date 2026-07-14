@@ -12,7 +12,12 @@
   <aside class="sidebar">
     <div class="brand">AI Doc Q&A</div>
 
-    <input type="file" id="file-upload" accept=".pdf,.mp3,.mp4,.wav,.m4a,.ogg" style="display:none" />
+    <input
+      type="file"
+      id="file-upload"
+      accept=".pdf,.txt,.md,.csv,.json,.mp3,.wav,.m4a,.ogg,.flac,.aac,.jpg,.jpeg,.png,.webp,.heic,.heif,.mp4,.mov,.avi,.webm,.mkv,.m4v"
+      style="display:none"
+    />
     <label for="file-upload" id="upload-label" class="upload-label">Upload File</label>
 
     <div class="files-heading">Your Files</div>
@@ -34,7 +39,7 @@
     <div class="content">
       <div class="chat-col">
         <div class="messages" id="messages">
-          <p class="empty">Ask anything about your document...</p>
+          <p class="empty">Ask anything about your selected file...</p>
         </div>
         <div class="input-row">
           <input type="text" id="question-input" placeholder="Select a file first" disabled />
@@ -42,7 +47,7 @@
         </div>
         <div class="timestamp-note" id="timestamp-note" style="display:none">
           <div class="heading">Timestamps</div>
-          <div class="hint">Ask a question about your audio/video — timestamps will appear in chat above.</div>
+          <div class="hint">Ask about an audio or video moment to receive its timestamp.</div>
         </div>
       </div>
 
@@ -57,11 +62,11 @@
   </div>
 </div>
 
-<script src="js/api.js?v=2"></script>
-<script src="js/ui.js?v=2"></script>
-<script src="js/files.js?v=2"></script>
-<script src="js/chat.js?v=2"></script>
-<script src="js/summary.js?v=2"></script>
-<script src="js/main.js?v=2"></script>
+<script src="js/api.js?v=3"></script>
+<script src="js/ui.js?v=3"></script>
+<script src="js/files.js?v=3"></script>
+<script src="js/chat.js?v=3"></script>
+<script src="js/summary.js?v=3"></script>
+<script src="js/main.js?v=3"></script>
 </body>
 </html>

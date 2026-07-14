@@ -5,6 +5,7 @@ import os
 from functools import lru_cache
 from typing import Dict, List
 
+import numpy as np
 import whisper
 from PyPDF2 import PdfReader
 
@@ -15,6 +16,38 @@ WHISPER_CACHE_DIR = os.getenv(
     "WHISPER_CACHE_DIR",
     os.path.join(os.path.expanduser("~"), ".cache", "whisper"),
 )
+WHISPER_SAMPLE_RATE = 16000
+MIN_AUDIO_RMS = float(os.getenv("MIN_AUDIO_RMS", "0.0005"))
+
+
+class NoUsableSpeechError(RuntimeError):
+    """Raised when an audio file has no readable stream or clear speech."""
+
+
+def _audio_rms(audio: np.ndarray) -> float:
+    """Return the root-mean-square amplitude of normalized audio samples."""
+    if audio.size == 0:
+        return 0.0
+
+    samples = np.asarray(audio, dtype=np.float64)
+    return float(np.sqrt(np.mean(np.square(samples))))
+
+
+def _load_audio(file_path: str) -> np.ndarray:
+    """Decode audio and reject files with no usable audio signal."""
+    try:
+        audio = whisper.load_audio(file_path)
+    except Exception as exc:
+        raise NoUsableSpeechError(
+            "No readable audio stream was found in the uploaded file."
+        ) from exc
+
+    if audio.size == 0 or _audio_rms(audio) < MIN_AUDIO_RMS:
+        raise NoUsableSpeechError(
+            "No usable speech was detected in the uploaded audio."
+        )
+
+    return audio
 
 
 @lru_cache(maxsize=1)
@@ -61,6 +94,27 @@ def extract_text_from_pdf(file_path: str) -> str:
         ) from exc
 
 
+def extract_text_file(file_path: str) -> str:
+    """Read a plain-text, Markdown, CSV, or JSON file safely."""
+    last_error = None
+
+    for encoding in ("utf-8-sig", "utf-16", "cp1252"):
+        try:
+            with open(file_path, "r", encoding=encoding) as text_file:
+                text = text_file.read().strip()
+
+            if not text:
+                raise RuntimeError("The uploaded text file is empty.")
+
+            return text
+        except UnicodeError as exc:
+            last_error = exc
+
+    raise RuntimeError(
+        f"Could not decode the uploaded text file: {last_error}"
+    )
+
+
 def transcribe_audio_with_timestamps(file_path: str) -> Dict:
     """
     Transcribe an audio or video file using Whisper.
@@ -76,12 +130,13 @@ def transcribe_audio_with_timestamps(file_path: str) -> Dict:
         - language: detected language
     """
     try:
+        audio = _load_audio(file_path)
         model = get_whisper_model()
 
         logger.info("Starting Whisper transcription for %s", file_path)
 
         result = model.transcribe(
-            file_path,
+            audio,
             word_timestamps=False,
             condition_on_previous_text=False,
             task="transcribe",
@@ -99,23 +154,57 @@ def transcribe_audio_with_timestamps(file_path: str) -> Dict:
             if not segment_text:
                 continue
 
+            start = max(float(segment.get("start", 0)), 0.0)
+            end = max(float(segment.get("end", start)), start)
+            start_sample = int(start * WHISPER_SAMPLE_RATE)
+            end_sample = int(end * WHISPER_SAMPLE_RATE)
+            segment_audio = audio[start_sample:end_sample]
+            segment_rms = _audio_rms(segment_audio)
+            no_speech_probability = float(
+                segment.get("no_speech_prob", 0.0)
+            )
+            average_log_probability = float(
+                segment.get("avg_logprob", 0.0)
+            )
+
+            # Whisper can generate plausible words over silence or noise.
+            # Require both a real signal and reasonable model confidence.
+            if segment_rms < MIN_AUDIO_RMS:
+                continue
+
+            if (
+                no_speech_probability >= 0.80
+                or average_log_probability < -1.20
+            ):
+                logger.info(
+                    "Skipping low-confidence Whisper segment: "
+                    "start=%.2f end=%.2f no_speech=%.3f avg_logprob=%.3f",
+                    start,
+                    end,
+                    no_speech_probability,
+                    average_log_probability,
+                )
+                continue
+
             segments.append(
                 {
                     "text": segment_text,
-                    "start": float(segment.get("start", 0)),
-                    "end": float(segment.get("end", 0)),
+                    "start": start,
+                    "end": end,
                 }
             )
 
-        transcript = result.get("text", "").strip()
+        transcript = " ".join(
+            segment["text"] for segment in segments
+        ).strip()
         detected_language = result.get("language")
 
         if not transcript or not segments:
-            raise RuntimeError(
+            raise NoUsableSpeechError(
                 "No clear speech was detected in the uploaded audio or video."
             )
 
-        duration = float(segments[-1].get("end", 0))
+        duration = float(len(audio) / WHISPER_SAMPLE_RATE)
 
         logger.info(
             "Whisper completed transcription: language=%s, "
@@ -133,6 +222,9 @@ def transcribe_audio_with_timestamps(file_path: str) -> Dict:
             "language": detected_language,
         }
 
+    except NoUsableSpeechError:
+        logger.info("No usable speech found in %s", file_path)
+        raise
     except Exception as exc:
         logger.exception("Whisper transcription failed for %s", file_path)
         raise RuntimeError(
