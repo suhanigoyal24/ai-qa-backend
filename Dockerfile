@@ -1,23 +1,36 @@
 FROM python:3.12-slim
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PORT=7860 \
     DJANGO_SETTINGS_MODULE=config.settings
+
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     build-essential \
     default-libmysqlclient-dev \
     pkg-config \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
+
 RUN mkdir -p /app/certs && \
-    curl -o /app/certs/ca-cert.pem https://letsencrypt.org/certs/isrgrootx1.pem
+    curl -fsSL \
+    https://letsencrypt.org/certs/isrgrootx1.pem \
+    -o /app/certs/ca-cert.pem
+
 COPY requirements.txt .
-# Step 1: Pin setuptools to older version that has pkg_resources working correctly
-RUN pip install --no-cache-dir "setuptools==69.5.1" wheel pip --upgrade
-# Step 2: Install all packages except whisper
+
+# Install a setuptools version that still includes pkg_resources
+RUN pip install --no-cache-dir --upgrade \
+    pip \
+    wheel \
+    "setuptools==69.5.1"
+
+# Install application dependencies except Whisper
 RUN pip install --no-cache-dir \
     Django==5.2.4 \
     djangorestframework==3.15.2 \
@@ -44,16 +57,26 @@ RUN pip install --no-cache-dir \
     pytest-mock==3.14.0 \
     django-environ==0.11.2 \
     mysqlclient==2.2.8
-# Step 3: Install whisper with pinned setuptools already in place
-RUN pip install --no-cache-dir --no-build-isolation openai-whisper==20231117
-# Step 4: Remaining deps
-RUN pip install --no-cache-dir python-magic==0.4.27
+
+# Install Whisper separately without build isolation
+RUN pip install --no-cache-dir \
+    --no-build-isolation \
+    openai-whisper==20231117
+
+RUN pip install --no-cache-dir \
+    python-magic==0.4.27
+
 COPY . .
+
 RUN mkdir -p media faiss_indexes
-# Skip collectstatic if it fails during build (secrets not available at build time)
-RUN python manage.py collectstatic --noinput --clear || echo "collectstatic skipped"
+
+# Secrets may not be available during the Docker build
+RUN python manage.py collectstatic --noinput --clear || \
+    echo "collectstatic skipped during build"
+
 EXPOSE 7860
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/api/files/')" || exit 1
-# Run collectstatic again at startup when env vars are available, then migrate and serve
+
 CMD ["sh", "-c", "echo '--- Testing DB connection ---' && timeout 30 python manage.py check --database default; if [ $? -ne 0 ]; then echo '--- DB CONNECTION FAILED OR TIMED OUT ---'; sleep 3600; fi; echo '--- DB OK, running migrate ---' && timeout 60 python manage.py migrate --noinput && echo '--- Migrate done, starting gunicorn ---' && exec gunicorn config.wsgi:application --bind 0.0.0.0:7860 --workers 2 --timeout 300 --access-logfile - --error-logfile - --log-level info"]
