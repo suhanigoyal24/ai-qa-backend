@@ -31,12 +31,18 @@ RUN pip install --no-cache-dir --upgrade \
     wheel \
     "setuptools==69.5.1"
 
+# Install the CPU-only PyTorch build.
+# This prevents Hugging Face CPU Basic from downloading CUDA/NVIDIA packages.
+RUN pip install --no-cache-dir \
+    torch==2.12.1 \
+    --index-url https://download.pytorch.org/whl/cpu
+
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download the Whisper tiny model during the image build.
-# Users will not have to wait for the model download on the first upload.
+# Download the Whisper tiny model while building the image.
+# It will not need to download the 72 MB model during the first upload.
 RUN mkdir -p "${WHISPER_CACHE_DIR}" && \
-    python -c "import os, whisper; whisper.load_model('tiny', download_root=os.environ['WHISPER_CACHE_DIR'])"
+    python -c "import os, whisper; whisper.load_model('tiny', download_root=os.environ['WHISPER_CACHE_DIR'], device='cpu')"
 
 COPY . .
 
