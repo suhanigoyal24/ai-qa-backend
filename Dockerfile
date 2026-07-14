@@ -8,6 +8,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     build-essential \
+    default-libmysqlclient-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY requirements.txt .
@@ -38,7 +40,8 @@ RUN pip install --no-cache-dir \
     pytest-django==4.9.0 \
     pytest-cov==5.0.0 \
     pytest-mock==3.14.0 \
-    django-environ==0.11.2
+    django-environ==0.11.2 \
+    mysqlclient==2.2.8
 # Step 3: Install whisper with pinned setuptools already in place
 RUN pip install --no-cache-dir --no-build-isolation openai-whisper==20231117
 # Step 4: Remaining deps
