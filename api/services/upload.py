@@ -23,7 +23,7 @@ def get_whisper_model():
     Load and cache one Whisper model instance per Python process.
 
     The Docker image downloads the model during build, so this should load it
-    from disk rather than downloading it during the first user upload.
+    from disk instead of downloading it during the first user upload.
     """
     logger.info(
         "Loading Whisper model '%s' from '%s'",
@@ -65,6 +65,9 @@ def transcribe_audio_with_timestamps(file_path: str) -> Dict:
     """
     Transcribe an audio or video file using Whisper.
 
+    Whisper segment timestamps are retained. Word-level alignment is disabled
+    because this application stores and retrieves segment start/end times.
+
     Returns:
         A dictionary containing:
         - text: complete transcription
@@ -79,31 +82,40 @@ def transcribe_audio_with_timestamps(file_path: str) -> Dict:
 
         result = model.transcribe(
             file_path,
-            word_timestamps=True,
+            word_timestamps=False,
+            condition_on_previous_text=False,
             task="transcribe",
             language=None,
+            temperature=0.0,
             fp16=False,
             verbose=False,
         )
 
-        segments = []
+        segments: List[Dict] = []
 
         for segment in result.get("segments", []):
+            segment_text = segment.get("text", "").strip()
+
+            if not segment_text:
+                continue
+
             segments.append(
                 {
-                    "text": segment.get("text", "").strip(),
+                    "text": segment_text,
                     "start": float(segment.get("start", 0)),
                     "end": float(segment.get("end", 0)),
-                    "words": segment.get("words", []),
                 }
             )
 
-        duration = 0.0
-        if segments:
-            duration = float(segments[-1].get("end", 0))
-
         transcript = result.get("text", "").strip()
         detected_language = result.get("language")
+
+        if not transcript or not segments:
+            raise RuntimeError(
+                "No clear speech was detected in the uploaded audio or video."
+            )
+
+        duration = float(segments[-1].get("end", 0))
 
         logger.info(
             "Whisper completed transcription: language=%s, "
@@ -133,7 +145,7 @@ def chunk_text(
     chunk_size: int = 1000,
     overlap: int = 200,
 ) -> List[str]:
-    """Split text into overlapping chunks for embedding."""
+    """Split text into overlapping chunks."""
     if not text:
         return []
 
@@ -185,35 +197,13 @@ def chunk_text_with_timestamps(
     overlap: int = 200,
 ) -> List[Dict]:
     """
-    Split a transcription into chunks while preserving timestamp metadata.
+    Create one searchable chunk per Whisper segment.
 
-    Returns:
-        A list of dictionaries containing:
-        - text
-        - start_time
-        - end_time
-        - segment_indices
+    A retrieved line therefore points to the start/end time of the segment in
+    which it was spoken instead of the beginning of a large 1000-character
+    block containing several unrelated lines.
     """
-    if not segments:
-        return [
-            {
-                "text": chunk,
-                "start_time": None,
-                "end_time": None,
-                "segment_indices": [],
-            }
-            for chunk in chunk_text(
-                full_text,
-                chunk_size,
-                overlap,
-            )
-        ]
-
     chunks: List[Dict] = []
-    current_text_parts: List[str] = []
-    current_start = None
-    current_end = None
-    current_segment_indices: List[int] = []
 
     for index, segment in enumerate(segments):
         segment_text = segment.get("text", "").strip()
@@ -221,58 +211,28 @@ def chunk_text_with_timestamps(
         if not segment_text:
             continue
 
-        segment_start = segment.get("start")
-        segment_end = segment.get("end")
+        start = segment.get("start")
+        end = segment.get("end")
 
-        if current_start is None:
-            current_start = segment_start
+        chunks.append(
+            {
+                "text": segment_text,
+                "start_time": float(start) if start is not None else None,
+                "end_time": float(end) if end is not None else None,
+                "segment_indices": [index],
+            }
+        )
 
-        current_text_parts.append(segment_text)
-        current_end = segment_end
-        current_segment_indices.append(index)
+    if chunks:
+        return chunks
 
-        current_text = " ".join(current_text_parts).strip()
-
-        if len(current_text) >= chunk_size:
-            chunks.append(
-                {
-                    "text": current_text,
-                    "start_time": current_start,
-                    "end_time": current_end,
-                    "segment_indices": (
-                        current_segment_indices.copy()
-                    ),
-                }
-            )
-
-            overlap_indices = current_segment_indices[-3:]
-
-            current_text_parts = [
-                segments[segment_index].get("text", "").strip()
-                for segment_index in overlap_indices
-                if segments[segment_index].get("text", "").strip()
-            ]
-
-            current_segment_indices = overlap_indices.copy()
-
-            if overlap_indices:
-                current_start = segments[
-                    overlap_indices[0]
-                ].get("start")
-            else:
-                current_start = None
-
-    remaining_text = " ".join(current_text_parts).strip()
-
-    if remaining_text:
-        last_chunk = {
-            "text": remaining_text,
-            "start_time": current_start,
-            "end_time": current_end,
-            "segment_indices": current_segment_indices.copy(),
+    # Defensive fallback for text sources that contain no timestamp segments.
+    return [
+        {
+            "text": chunk,
+            "start_time": None,
+            "end_time": None,
+            "segment_indices": [],
         }
-
-        if not chunks or last_chunk["text"] != chunks[-1]["text"]:
-            chunks.append(last_chunk)
-
-    return chunks
+        for chunk in chunk_text(full_text, chunk_size, overlap)
+    ]

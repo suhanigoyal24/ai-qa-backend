@@ -1,12 +1,14 @@
-"""LLM services using Google Gemini, with OpenRouter fallback"""
-import os
+"""LLM services using Google Gemini, with OpenRouter fallback."""
+
 import logging
+import os
+
 import requests
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 logger = logging.getLogger(__name__)
 
-# Global cache — only cache a WORKING instance, never cache mock/failure state
+# Only cache a working provider. Never cache a mock/failure state.
 _llm_instance = None
 
 OPENROUTER_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
@@ -14,32 +16,41 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
 def _extract_text(content) -> str:
-    """Normalize response.content, which can be a plain string or a list
-    of content blocks depending on the langchain-google-genai version /
-    model response format."""
+    """
+    Normalize response content returned as a string or content-block list.
+    """
     if isinstance(content, str):
         return content
+
     if isinstance(content, list):
         parts = []
+
         for block in content:
             if isinstance(block, str):
                 parts.append(block)
             elif isinstance(block, dict):
                 parts.append(block.get("text", ""))
+
         return "".join(parts)
+
     return str(content)
 
 
 class _MockResponse:
-    """Mock response matching LangChain interface (used by all fallback tiers)."""
+    """Mock response matching the LangChain response interface."""
+
     def __init__(self, content: str):
         self.content = content
 
 
 class _OpenRouterLLM:
-    """Fallback LLM using OpenRouter's free tier (OpenAI-compatible API)."""
+    """Fallback LLM using OpenRouter's OpenAI-compatible API."""
 
-    def __init__(self, api_key: str, model: str = OPENROUTER_MODEL):
+    def __init__(
+        self,
+        api_key: str,
+        model: str = OPENROUTER_MODEL,
+    ):
         self.api_key = api_key
         self.model = model
 
@@ -53,54 +64,98 @@ class _OpenRouterLLM:
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.1,
         }
-        resp = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
+
+        response = requests.post(
+            OPENROUTER_URL,
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+
+        data = response.json()
         text = data["choices"][0]["message"]["content"]
         return _MockResponse(text)
 
 
 class _MockLLM:
-    """Last-resort mock — only used if BOTH Gemini and OpenRouter fail.
-
-    NOTE: cannot see the document context, so answers will look
-    generic/repeated across files by design.
-    """
+    """Last-resort response provider when Gemini and OpenRouter fail."""
 
     MOCK_PREFIX = "[AI service unavailable - mock response] "
 
     def invoke(self, prompt: str, **kwargs):
         question = prompt.lower()
+
         if "question:" in question:
             question = question.split("question:")[-1].strip()
 
-        if any(k in question for k in ["skill", "skills", "technology", "technologies", "stack", "tools"]):
-            answer = "Key technical skills mentioned: Python, Django, Django REST Framework, React, Vite, PostgreSQL, FAISS, Whisper, Google Gemini, LangChain, Docker, and GitHub Actions. Strong focus on full-stack development and AI/ML integration."
-        elif any(k in question for k in ["summary", "summarize", "about", "document", "what is"]):
-            answer = "• Professional experience in full-stack web development\n• Technical expertise in Python, Django, React, and PostgreSQL\n• Strong background in AI/ML integration and vector search systems\n• Education and certifications in computer science and related fields"
-        elif any(k in question for k in ["why", "important", "value", "benefit", "useful"]):
-            answer = "This document demonstrates practical application of modern development practices. It highlights proficiency in building scalable web applications, integrating AI services like Gemini and FAISS, and following production-ready architecture with testing and CI/CD."
-        elif any(k in question for k in ["how", "built", "architecture", "work", "implemented"]):
-            answer = "Uses a RAG (Retrieval-Augmented Generation) architecture: documents are chunked, embedded with Gemini, stored in FAISS for fast semantic search, and relevant context is injected into prompts for grounded, accurate AI responses."
-        elif any(k in question for k in ["contact", "email", "phone", "reach"]):
-            answer = "Contact information is typically included in the header or footer of professional documents. Please refer to the original uploaded file for specific contact details."
-        elif any(k in question for k in ["project", "experience", "background", "work history"]):
-            answer = "The document outlines experience building AI-powered applications with semantic search, full-stack web development with Django and React, and production deployment using Docker and GitHub Actions."
+        if any(
+            keyword in question
+            for keyword in [
+                "skill",
+                "skills",
+                "technology",
+                "technologies",
+                "stack",
+                "tools",
+            ]
+        ):
+            answer = (
+                "Key technical skills mentioned include Python, Django, "
+                "Django REST Framework, FAISS, Whisper, Google Gemini, "
+                "LangChain, Docker, and GitHub Actions."
+            )
+        elif any(
+            keyword in question
+            for keyword in [
+                "summary",
+                "summarize",
+                "about",
+                "document",
+                "what is",
+            ]
+        ):
+            answer = (
+                "The AI service is temporarily unavailable, so a reliable "
+                "document-grounded summary cannot be generated right now."
+            )
+        elif any(
+            keyword in question
+            for keyword in ["when", "timestamp", "time", "line", "spoken"]
+        ):
+            answer = (
+                "The AI service is temporarily unavailable. Please retry "
+                "before relying on a timestamp answer."
+            )
         else:
-            answer = "The document contains professional or technical content related to software development. For specific answers, try asking about skills, technologies, architecture, or project experience."
+            answer = (
+                "The AI service is temporarily unavailable, so I cannot "
+                "provide a reliable document-grounded answer right now."
+            )
 
         return _MockResponse(self.MOCK_PREFIX + answer)
 
 
-def get_llm(model_name: str = "gemini-flash-lite-latest", temperature: float = 0.1):
-    """Get or create an LLM instance: Gemini first, then OpenRouter, then mock.
-    Only a WORKING instance is cached — failures are retried on the next call."""
+def get_llm(
+    model_name: str = "gemini-flash-lite-latest",
+    temperature: float = 0.1,
+):
+    """
+    Return a working LLM provider: Gemini, OpenRouter, then local mock.
+
+    Only a working remote provider is cached. Provider failures are retried on
+    the next request.
+    """
     global _llm_instance
 
-    if _llm_instance is not None and not isinstance(_llm_instance, _MockLLM):
+    if _llm_instance is not None and not isinstance(
+        _llm_instance,
+        _MockLLM,
+    ):
         return _llm_instance
 
     gemini_key = os.getenv("GEMINI_API_KEY")
+
     if gemini_key and gemini_key != "your_gemini_api_key_here":
         try:
             instance = ChatGoogleGenerativeAI(
@@ -113,27 +168,37 @@ def get_llm(model_name: str = "gemini-flash-lite-latest", temperature: float = 0
             _llm_instance = instance
             logger.info("Using Gemini as LLM provider")
             return _llm_instance
-        except Exception as e:
-            logger.warning(f"Gemini unavailable, trying OpenRouter fallback: {e}")
+        except Exception as exc:
+            logger.warning(
+                "Gemini unavailable, trying OpenRouter fallback: %s",
+                exc,
+            )
 
     openrouter_key = os.getenv("OPENROUTER_API_KEY")
-    if openrouter_key and openrouter_key != "your_openrouter_api_key_here":
+
+    if (
+        openrouter_key
+        and openrouter_key != "your_openrouter_api_key_here"
+    ):
         try:
             instance = _OpenRouterLLM(api_key=openrouter_key)
             instance.invoke("Hello")
             _llm_instance = instance
-            logger.info("Using OpenRouter as LLM provider (Gemini fallback)")
+            logger.info("Using OpenRouter as LLM provider")
             return _llm_instance
-        except Exception as e:
-            logger.error(f"OpenRouter also failed, falling back to mock: {e}", exc_info=True)
+        except Exception as exc:
+            logger.error(
+                "OpenRouter failed; using mock response provider: %s",
+                exc,
+                exc_info=True,
+            )
 
-    logger.warning("No working LLM provider — using mock LLM")
-    _llm_instance = _MockLLM()
-    return _llm_instance
+    logger.warning("No working LLM provider; using mock response provider")
+    return _MockLLM()
 
 
 def get_chat_response(question: str, context: str = "") -> str:
-    """Get AI answer to a question based on document context."""
+    """Answer a question using retrieved document context."""
     llm = get_llm()
 
     if context:
@@ -144,15 +209,28 @@ Document context:
 
 Question: {question}
 
-Answer concisely based on the context above."""
+Instructions:
+- Answer concisely and only from the supplied document context.
+- If the question asks when, where, or at what timestamp a line is spoken,
+  include the start timestamp from the most relevant timestamped chunk.
+- Never invent a timestamp that is not present in the context.
+
+Answer:"""
     else:
-        prompt = f"Question: {question}\n\nAnswer concisely:"
+        prompt = (
+            f"Question: {question}\n\n"
+            "Answer concisely. State clearly when document context is missing."
+        )
 
     try:
         response = llm.invoke(prompt)
         return _extract_text(response.content).strip()
-    except Exception as e:
-        logger.error(f"get_chat_response failed: {e}", exc_info=True)
+    except Exception as exc:
+        logger.error(
+            "get_chat_response failed: %s",
+            exc,
+            exc_info=True,
+        )
         return "I encountered an error processing your question. Please try again."
 
 
@@ -161,18 +239,26 @@ def get_summary(text: str, max_length: int = 500) -> str:
     llm = get_llm()
     truncated = text[:12000] if len(text) > 12000 else text
 
-    prompt = f"""Summarize the following in 3-5 bullet points:
+    prompt = f"""Summarize the following document in 3-5 concise bullet points.
+Use only information contained in the document.
 
+Document:
 {truncated}
 
-Summary (bullet points):"""
+Summary:"""
 
     try:
         response = llm.invoke(prompt)
         summary = _extract_text(response.content).strip()
+
         if not summary.startswith("•") and not summary.startswith("-"):
             summary = "• " + summary.replace("\n", "\n• ")
+
         return summary
-    except Exception as e:
-        logger.error(f"get_summary failed: {e}", exc_info=True)
-        return "• Professional experience in software development\n• Technical expertise in modern web technologies\n• Strong background in AI/ML and system design"
+    except Exception as exc:
+        logger.error(
+            "get_summary failed: %s",
+            exc,
+            exc_info=True,
+        )
+        return "• AI summary generation is temporarily unavailable."
