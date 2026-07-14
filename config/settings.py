@@ -67,10 +67,12 @@ DATABASES = {
     )
 }
 
-# Required for MySQL connections with dj_database_url / mysqlclient
-DATABASES['default']['OPTIONS'] = {
-    'charset': 'utf8mb4',
-}
+# TiDB Cloud requires TLS + MySQL needs charset; Postgres doesn't support either
+if DATABASES['default']['ENGINE'] == 'django.db.backends.mysql':
+    DATABASES['default']['OPTIONS'] = {
+        'charset': 'utf8mb4',
+        'ssl': {'ca': '/etc/ssl/certs/ca-certificates.crt'},
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
