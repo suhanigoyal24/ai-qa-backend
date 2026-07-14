@@ -110,7 +110,7 @@ class UploadFileView(APIView):
                 db_file.is_processed = True
                 db_file.save()
 
-                logger.info(f"✅ Successfully processed file: {db_file.id}")
+                logger.info(f"Successfully processed file: {db_file.id}")
                 return Response({
                     'message': 'Processed successfully',
                     'file_id': str(db_file.id),
@@ -120,7 +120,7 @@ class UploadFileView(APIView):
                 }, status=status.HTTP_201_CREATED)
 
             except Exception as process_error:
-                logger.error(f"❌ Processing error: {process_error}", exc_info=True)
+                logger.error(f"Processing error: {process_error}", exc_info=True)
                 if default_storage.exists(file_path):
                     default_storage.delete(file_path)
                 return Response(
@@ -129,7 +129,7 @@ class UploadFileView(APIView):
                 )
 
         except Exception as e:
-            logger.error(f"❌ Upload view error: {e}", exc_info=True)
+            logger.error(f"Upload view error: {e}", exc_info=True)
             return Response(
                 {'error': f'Upload failed: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
