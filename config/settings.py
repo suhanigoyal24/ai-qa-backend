@@ -95,13 +95,24 @@ DATABASES = {
 }
 
 # TiDB Cloud is MySQL compatible and requires an encrypted connection.
-# Use ssl_mode directly instead of ssl/ca because the container's MySQL
-# client rejects the generated ssl_ca keyword.
+# On HF Space (Linux container) ssl_mode works fine. On local Windows
+# dev, Schannel throws SEC_E_DECRYPT_FAILURE with ssl_mode alone, so
+# an explicit CA cert path is needed instead. Set DB_SSL_CA in your
+# local .env to the downloaded isrgrootx1.pem path to use this path;
+# leave it unset on HF Space to keep the existing ssl_mode behavior.
+DB_SSL_CA = config("DB_SSL_CA", default="")
+
 if DATABASES["default"]["ENGINE"] == "django.db.backends.mysql":
-    DATABASES["default"]["OPTIONS"] = {
-        "ssl_mode": "VERIFY_IDENTITY",
-        "charset": "utf8mb4",
-    }
+    if DB_SSL_CA:
+        DATABASES["default"]["OPTIONS"] = {
+            "ssl": {"ca": DB_SSL_CA},
+            "charset": "utf8mb4",
+        }
+    else:
+        DATABASES["default"]["OPTIONS"] = {
+            "ssl_mode": "VERIFY_IDENTITY",
+            "charset": "utf8mb4",
+        }
     # TiDB Cloud closes idle connections server-side before conn_max_age
     # expires. Without a health check, Django tries to reuse the dead
     # connection and the request fails with a 500. This pings the
