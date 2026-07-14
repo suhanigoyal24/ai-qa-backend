@@ -21,7 +21,10 @@ DEBUG = config("DEBUG", default=False, cast=bool)
 
 ALLOWED_HOSTS = [
     host.strip()
-    for host in config("ALLOWED_HOSTS", default="*").split(",")
+    for host in config(
+        "ALLOWED_HOSTS",
+        default=".hf.space,.vercel.app,localhost,127.0.0.1",
+    ).split(",")
     if host.strip()
 ]
 
@@ -77,8 +80,8 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 
 # Database
-# SQLite is used only as a fallback during local development or Docker build.
-# Hugging Face uses the DATABASE_URL secret for TiDB/MySQL at runtime.
+# SQLite is used only when DATABASE_URL is unavailable during local
+# development or Docker image build.
 DATABASE_URL = config(
     "DATABASE_URL",
     default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
@@ -91,12 +94,13 @@ DATABASES = {
     )
 }
 
-# TiDB/MySQL SSL configuration.
-# The certificate is downloaded into this path by the Dockerfile.
+# TiDB Cloud is MySQL compatible and requires an encrypted connection.
+# Use ssl_mode directly instead of ssl/ca because the container's MySQL
+# client rejects the generated ssl_ca keyword.
 if DATABASES["default"]["ENGINE"] == "django.db.backends.mysql":
-    DATABASES["default"].setdefault("OPTIONS", {})
-    DATABASES["default"]["OPTIONS"]["ssl"] = {
-        "ca": "/app/certs/ca-cert.pem",
+    DATABASES["default"]["OPTIONS"] = {
+        "ssl_mode": "VERIFY_IDENTITY",
+        "charset": "utf8mb4",
     }
 
 
@@ -172,29 +176,41 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_ALL_ORIGINS = False
 
+
+# CSRF
 CSRF_TRUSTED_ORIGINS = [
     origin.strip()
     for origin in config(
         "CSRF_TRUSTED_ORIGINS",
-        default="",
+        default=(
+            "https://gsuhani17-ai-qa-backend.hf.space"
+        ),
     ).split(",")
     if origin.strip()
 ]
 
 
-# Security settings
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# Security behind Hugging Face proxy
+SECURE_PROXY_SSL_HEADER = (
+    "HTTP_X_FORWARDED_PROTO",
+    "https",
+)
 
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 
 
 # External services
-GEMINI_API_KEY = config("GEMINI_API_KEY", default="")
+GEMINI_API_KEY = config(
+    "GEMINI_API_KEY",
+    default="",
+)
+
 GOOGLE_API_KEY = config(
     "GOOGLE_API_KEY",
     default=GEMINI_API_KEY,
 )
+
 OPENROUTER_API_KEY = config(
     "OPENROUTER_API_KEY",
     default="",
