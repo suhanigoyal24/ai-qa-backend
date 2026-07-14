@@ -12,6 +12,8 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
+RUN mkdir -p /app/certs && \
+    curl -o /app/certs/ca-cert.pem https://letsencrypt.org/certs/isrgrootx1.pem
 COPY requirements.txt .
 # Step 1: Pin setuptools to older version that has pkg_resources working correctly
 RUN pip install --no-cache-dir "setuptools==69.5.1" wheel pip --upgrade
@@ -54,4 +56,4 @@ EXPOSE 7860
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/api/files/')" || exit 1
 # Run collectstatic again at startup when env vars are available, then migrate and serve
-CMD ["sh", "-c", "echo '--- Starting migrate ---' && python manage.py migrate --noinput && echo '--- Migrate done, starting gunicorn ---' && gunicorn config.wsgi:application --bind 0.0.0.0:7860 --workers 2 --timeout 300 --access-logfile - --error-logfile - --log-level info"]
+CMD ["sh", "-c", "echo '--- Testing DB connection ---' && timeout 30 python manage.py check --database default; if [ $? -ne 0 ]; then echo '--- DB CONNECTION FAILED OR TIMED OUT ---'; sleep 3600; fi; echo '--- DB OK, running migrate ---' && timeout 60 python manage.py migrate --noinput && echo '--- Migrate done, starting gunicorn ---' && exec gunicorn config.wsgi:application --bind 0.0.0.0:7860 --workers 2 --timeout 300 --access-logfile - --error-logfile - --log-level info"]

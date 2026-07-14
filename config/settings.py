@@ -3,6 +3,7 @@ from pathlib import Path
 from decouple import config
 import dj_database_url
 from datetime import timedelta
+import dj_database_url
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -62,17 +63,18 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=config('DATABASE_URL', default='mysql://root:@localhost:3306/ai_qa'),
+        default=env('DATABASE_URL'),
         conn_max_age=600,
+        ssl_require=True,
     )
 }
 
-# TiDB Cloud requires TLS + MySQL needs charset; Postgres doesn't support either
-if DATABASES['default']['ENGINE'] == 'django.db.backends.mysql':
-    DATABASES['default']['OPTIONS'] = {
-        'charset': 'utf8mb4',
-        'ssl': {'ca': '/etc/ssl/certs/ca-certificates.crt'},
+# TiDB - explicit SSL options
+DATABASES['default']['OPTIONS'] = {
+    'ssl': {
+        'ca': '/app/certs/ca-cert.pem'
     }
+}
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
