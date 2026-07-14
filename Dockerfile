@@ -40,4 +40,4 @@ RUN python manage.py collectstatic --noinput --clear
 
 EXPOSE 7860
 
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:7860", "--workers", "1", "--timeout", "300", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.wsgi:application --bind 0.0.0.0:7860 --workers 1 --timeout 300 --access-logfile - --error-logfile - --log-level info"]
