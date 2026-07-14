@@ -77,8 +77,8 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 
 # Database
-# SQLite is used as a safe fallback during Docker build when Space secrets
-# are not yet available. At runtime, Hugging Face supplies DATABASE_URL.
+# SQLite is used only as a fallback during local development or Docker build.
+# Hugging Face uses the DATABASE_URL secret for TiDB/MySQL at runtime.
 DATABASE_URL = config(
     "DATABASE_URL",
     default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
@@ -91,12 +91,12 @@ DATABASES = {
     )
 }
 
-# Add the TiDB CA certificate only when using a MySQL-compatible database.
+# TiDB/MySQL SSL configuration.
+# The certificate is downloaded into this path by the Dockerfile.
 if DATABASES["default"]["ENGINE"] == "django.db.backends.mysql":
-    DATABASES["default"]["OPTIONS"] = {
-        "ssl": {
-            "ca": "/app/certs/ca-cert.pem",
-        }
+    DATABASES["default"].setdefault("OPTIONS", {})
+    DATABASES["default"]["OPTIONS"]["ssl"] = {
+        "ca": "/app/certs/ca-cert.pem",
     }
 
 
@@ -172,11 +172,33 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_ALL_ORIGINS = False
 
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in config(
+        "CSRF_TRUSTED_ORIGINS",
+        default="",
+    ).split(",")
+    if origin.strip()
+]
+
+
+# Security settings
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+
 
 # External services
 GEMINI_API_KEY = config("GEMINI_API_KEY", default="")
-GOOGLE_API_KEY = config("GOOGLE_API_KEY", default=GEMINI_API_KEY)
-OPENROUTER_API_KEY = config("OPENROUTER_API_KEY", default="")
+GOOGLE_API_KEY = config(
+    "GOOGLE_API_KEY",
+    default=GEMINI_API_KEY,
+)
+OPENROUTER_API_KEY = config(
+    "OPENROUTER_API_KEY",
+    default="",
+)
 
 
 # FAISS storage
