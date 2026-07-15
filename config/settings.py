@@ -6,6 +6,7 @@ import dj_database_url
 from decouple import config
 from dotenv import load_dotenv
 
+
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -17,7 +18,11 @@ SECRET_KEY = config(
     default="django-insecure-change-me-in-production",
 )
 
-DEBUG = config("DEBUG", default=False, cast=bool)
+DEBUG = config(
+    "DEBUG",
+    default=False,
+    cast=bool,
+)
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -68,7 +73,7 @@ TEMPLATES = [
         "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.debug",
-                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
             ],
@@ -94,19 +99,18 @@ DATABASES = {
     )
 }
 
-# TiDB Cloud is MySQL compatible and requires an encrypted connection.
-# Use ssl_mode directly instead of ssl/ca because the container's MySQL
-# client rejects the generated ssl_ca keyword.
+# TiDB Cloud is MySQL compatible and requires a verified TLS connection.
 if DATABASES["default"]["ENGINE"] == "django.db.backends.mysql":
     DATABASES["default"]["OPTIONS"] = {
         "ssl_mode": "VERIFY_IDENTITY",
+        "ssl": {
+            "ca": "/app/certs/ca-cert.pem",
+        },
         "charset": "utf8mb4",
+        "connect_timeout": 15,
     }
-    # TiDB Cloud closes idle connections server-side before conn_max_age
-    # expires. Without a health check, Django tries to reuse the dead
-    # connection and the request fails with a 500. This pings the
-    # connection before reuse and transparently opens a new one if it's
-    # gone.
+
+    # Check reused database connections before handling requests.
     DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 
@@ -188,15 +192,13 @@ CSRF_TRUSTED_ORIGINS = [
     origin.strip()
     for origin in config(
         "CSRF_TRUSTED_ORIGINS",
-        default=(
-            "https://gsuhani17-ai-qa-backend.hf.space"
-        ),
+        default="https://gsuhani17-ai-qa-backend.hf.space",
     ).split(",")
     if origin.strip()
 ]
 
 
-# Security behind Hugging Face proxy
+# Security behind the Hugging Face proxy
 SECURE_PROXY_SSL_HEADER = (
     "HTTP_X_FORWARDED_PROTO",
     "https",
@@ -246,10 +248,7 @@ SIMPLE_JWT = {
 
 
 # Logging
-# Django doesn't print tracebacks to stdout by default when DEBUG=False,
-# so 500 errors only show as a one-line access log entry. This sends
-# full tracebacks to the console, which HF Spaces captures in the
-# container logs.
+# Send Django errors and tracebacks to stdout so Hugging Face captures them.
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
