@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 GEMINI_IMAGE_MODEL = os.getenv(
     "GEMINI_IMAGE_MODEL",
-    "gemini-2.5-flash",
+    "gemini-3.1-flash-lite",
 )
 
 

@@ -241,6 +241,7 @@ def get_summary(text: str, max_length: int = 500) -> str:
 
     prompt = f"""Summarize the following document in 3-5 concise bullet points.
 Use only information contained in the document.
+Return only the bullet points, one per line, with no heading or label.
 
 Document:
 {truncated}
@@ -249,12 +250,21 @@ Summary:"""
 
     try:
         response = llm.invoke(prompt)
-        summary = _extract_text(response.content).strip()
+        raw = _extract_text(response.content).strip()
 
-        if not summary.startswith("•") and not summary.startswith("-"):
-            summary = "• " + summary.replace("\n", "\n• ")
+        lines = []
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if line.lower() in ("summary:", "summary"):
+                continue
+            line = line.lstrip("•*- ").strip()
+            if line:
+                lines.append(f"• {line}")
 
-        return summary
+        summary = "\n".join(lines)
+        return summary or "• No summary could be generated from this document."
     except Exception as exc:
         logger.error(
             "get_summary failed: %s",
