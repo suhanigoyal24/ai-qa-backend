@@ -60,4 +60,4 @@ htmlcov/
 *.xml
 
 # Frontend is deployed separately
-ai-qa-frontend/
+frontend/

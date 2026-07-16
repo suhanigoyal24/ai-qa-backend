@@ -24,7 +24,7 @@ RUN mkdir -p /app/certs && \
     https://letsencrypt.org/certs/isrgrootx1.pem \
     -o /app/certs/ca-cert.pem
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 
 RUN pip install --no-cache-dir --upgrade \
     pip \
@@ -44,7 +44,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN mkdir -p "${WHISPER_CACHE_DIR}" && \
     python -c "import os, whisper; whisper.load_model('tiny', download_root=os.environ['WHISPER_CACHE_DIR'], device='cpu')"
 
-COPY . .
+COPY backend/ .
 
 RUN mkdir -p \
     media \
