@@ -1,5 +1,5 @@
 ---
-title: ai-qa-backend
+title: ai-qa-app
 colorFrom: blue
 colorTo: purple
 sdk: docker
@@ -7,9 +7,9 @@ app_port: 7860
 pinned: false
 ---
 
-# AI QA Backend
+# AI QA App
 
-Django + RAG + Gemini API powered backend for the AI Questionnaire App. Supports multi-format document ingestion (PDF, audio, video) with retrieval-augmented question answering.
+Django + RAG + Gemini API powered backend for the AI Questionnaire App. Supports multi-format document ingestion (PDF, image, audio, video) with retrieval-augmented question answering.
 
 ## Live Demo
 
@@ -22,7 +22,7 @@ Django + RAG + Gemini API powered backend for the AI Questionnaire App. Supports
 |---|---|
 | `/api/health/` | Health check |
 | `/api/questions/` | Ask questions against ingested documents |
-| `/api/files/` | Upload and manage PDF, audio, and video files |
+| `/api/files/` | Upload and manage PDF, image, audio, and video files |
 
 ## Tech Stack
 
@@ -38,29 +38,21 @@ Django + RAG + Gemini API powered backend for the AI Questionnaire App. Supports
 |---|---|
 | `GEMINI_API_KEY` | Google Gemini API key |
 | `DJANGO_SECRET_KEY` | Django secret key |
-| `DEBUG` | Set to `False` in production |
+| `DEBUG` | Set to False in production |
 | `ALLOWED_HOSTS` | Comma-separated allowed domains |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated frontend URLs |
 
 ## Local Setup
 
 ```bash
-git clone https://github.com/suhanigoyal24/ai-qa-backend.git
-cd ai-qa-backend
+git clone https://github.com/suhanigoyal24/ai-qa-app.git
+cd ai-qa-app
 python -m venv .venv
 .venv\Scripts\activate  # Windows
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
 ```
-
-## Testing
-
-```bash
-pytest --cov
-```
-
-Current test coverage: 96.30%
 
 ## Author
 
