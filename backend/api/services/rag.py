@@ -7,8 +7,14 @@ from typing import Dict, List, Optional
 
 import faiss
 import numpy as np
-import google.generativeai as genai
 from django.conf import settings
+
+try:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    HAS_GOOGLE_CHAT = True
+except ImportError:
+    HAS_GOOGLE_CHAT = False
 
 try:
     from langchain_google_genai import GoogleGenerativeAIEmbeddings
@@ -264,11 +270,19 @@ def extract_best_timestamp(results: List[Dict]) -> Optional[float]:
 
 def _get_generation_model():
     """Lazy-load the Gemini generation model (separate from embeddings)."""
+    if not HAS_GOOGLE_CHAT:
+        return None
+
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key or api_key == "your_gemini_api_key_here":
         return None
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel("gemini-1.5-flash")
+
+    return ChatGoogleGenerativeAI(
+        model="gemini-1.5-flash",
+        google_api_key=api_key,
+        temperature=0.2,  # low temperature: factual, less creative drift
+        max_output_tokens=300,
+    )
 
 
 def build_prompt(query: str, context: str) -> str:
@@ -325,13 +339,7 @@ def generate_answer(query: str, context: str) -> str:
     prompt = build_prompt(query, context)
 
     try:
-        response = model.generate_content(
-            prompt,
-            generation_config={
-                "temperature": 0.2,  # low temperature: factual, less creative drift
-                "max_output_tokens": 300,
-            },
-        )
-        return response.text.strip()
+        response = model.invoke(prompt)
+        return response.content.strip()
     except Exception as exc:
         return f"Generation failed: {exc}"
